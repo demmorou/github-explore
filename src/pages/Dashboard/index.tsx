@@ -1,11 +1,11 @@
-import React, { FC, useState, useCallback, FormEvent } from "react";
+import React, { FC, useState, useEffect, useCallback, FormEvent } from "react";
 import { FiChevronRight } from "react-icons/fi";
 
 import api from "../../services/api";
 
 import logo from "../../assets/logo.svg";
 
-import { Title, Form, Repositories } from "./styles";
+import { Title, Form, Repositories, Error } from "./styles";
 
 interface Repository {
   full_name: string;
@@ -18,21 +18,50 @@ interface Repository {
 
 const Dashboard: FC = () => {
   const [newRepo, setNewRepo] = useState("");
-  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [inputError, setInputError] = useState("");
+
+  const [repositories, setRepositories] = useState<Repository[]>(() => {
+    const storedRepositories = localStorage.getItem(
+      "@GihubExplore:repositories"
+    );
+
+    if (storedRepositories) {
+      return JSON.parse(storedRepositories);
+    } else {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(
+      "@GihubExplore:repositories",
+      JSON.stringify(repositories)
+    );
+  }, [repositories]);
 
   const handleAddRepository = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const response = await api.get(`repos/${newRepo}`);
+      if (!newRepo) {
+        setInputError("Informe um repositório válido");
+        return;
+      }
 
-      const repository: Repository = response.data;
+      try {
+        const response = await api.get(`repos/${newRepo}`);
 
-      setRepositories([...repositories, repository]);
+        const repository: Repository = response.data;
 
-      setNewRepo("");
+        setRepositories([...repositories, repository]);
+
+        setNewRepo("");
+        setInputError("");
+      } catch (error) {
+        setInputError("Erro durante a busca por esse repostitório!");
+      }
     },
-    [newRepo]
+    [newRepo, repositories]
   );
 
   return (
@@ -40,7 +69,7 @@ const Dashboard: FC = () => {
       <img src={logo} alt="Github" />
       <Title>Explore repositorios no github</Title>
 
-      <Form onSubmit={handleAddRepository}>
+      <Form hasError={!!inputError} onSubmit={handleAddRepository}>
         <input
           value={newRepo}
           onChange={(e) => setNewRepo(e.target.value)}
@@ -48,6 +77,8 @@ const Dashboard: FC = () => {
         />
         <button type="submit">Pesquisar</button>
       </Form>
+
+      {inputError && <Error>{inputError}</Error>}
 
       <Repositories>
         {repositories.map((repository) => (
